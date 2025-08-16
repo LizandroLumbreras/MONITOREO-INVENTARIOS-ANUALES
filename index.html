@@ -12,14 +12,14 @@
     :root{
       --azul:#00416A;
       --prim:#0c6cbd;
-      --blanco:#fff;
       --sombra:rgba(0,0,0,.18);
 
-      /* Marca de agua (ajusta a tu gusto) */
-      --wm-size: min(72vmin, 900px);
-      --wm-opacity: .14;
-      --wm-rotate: -8deg;
-      --wm-blend: normal; /* normal | multiply | screen */
+      /* ===== Marca de agua (ajusta a tu gusto) ===== */
+      /* Más grande: subí el tamaño máximo y relativo */
+      --wm-size: clamp(520px, 78vmin, 1280px); /* tamaño */
+      --wm-opacity: .14;                       /* transparencia */
+      --wm-rotate: 0deg;                       /* 0 = derecha (sin inclinación) */
+      --wm-blend: normal;                      /* normal | multiply | screen */
     }
 
     *{ box-sizing:border-box }
@@ -82,18 +82,23 @@
     .muted{ opacity:.9 }
     .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
 
-    /* ===== Marca de agua (IMG) ===== */
+    /* ===== Marca de agua (IMG) centrada ===== */
     .wm-logo{
       position:fixed; inset:0; z-index:0; pointer-events:none;
-      display:flex; align-items:center; justify-content:center;
     }
     .wm-logo img{
-      width:var(--wm-size); height:auto;
-      opacity:var(--wm-opacity);
-      transform:rotate(var(--wm-rotate));
-      mix-blend-mode:var(--wm-blend);
-      filter:grayscale(20%) saturate(120%) contrast(105%);
+      position:absolute;
+      top:50%; left:50%;
+      transform: translate(-50%, -50%) rotate(var(--wm-rotate));
+      transform-origin: center center;
+      width: var(--wm-size);
+      height: auto;
+      opacity: var(--wm-opacity);
+      mix-blend-mode: var(--wm-blend);
+      filter: grayscale(20%) saturate(120%) contrast(105%);
     }
+    /* Asegura que el contenido quede encima */
+    main { position:relative; z-index:1; }
     @media print { .wm-logo{ display:none } }
 
     /* ===== Footer ===== */
@@ -114,7 +119,8 @@
 
   <!-- MARCA DE AGUA -->
   <div class="wm-logo">
-    <img id="wm-img" alt="Marca de agua La Proveedora">
+    <!-- Cambia la ruta si tu logo está en otra carpeta -->
+    <img id="wm-img" src="logo-proveedora.webp" alt="Marca de agua La Proveedora">
   </div>
 
   <main>
@@ -185,31 +191,6 @@
 
     // Arranque vacío
     render([]);
-
-    // Marca de agua: intenta rutas comunes (GitHub Pages es sensible a mayúsculas)
-    (async function loadWatermark(){
-      const CANDIDATES = [
-        'logo-proveedora.webp',
-        './logo-proveedora.webp',
-        'assets/logo-proveedora.webp',
-        'img/logo-proveedora.webp',
-        'logo_proveedora.webp',
-        'logo-proveedora.png',
-        'img/logo-proveedora.png'
-      ];
-      const $img = document.getElementById('wm-img');
-      for (const p of CANDIDATES){
-        try{
-          await new Promise((res, rej)=>{
-            const t = new Image();
-            t.onload = res; t.onerror = rej; t.src = p;
-          });
-          $img.src = p;
-          return;
-        }catch{}
-      }
-      console.warn('Marca de agua: no se encontró el logo. Verifica la ruta/nombre del archivo.');
-    })();
 
     // Eventos UI
     selUsuario.addEventListener('change', ()=> render(filter()));
