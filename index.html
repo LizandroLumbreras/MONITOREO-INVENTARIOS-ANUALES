@@ -15,9 +15,8 @@
       --sombra:rgba(0,0,0,.18);
 
       /* ===== Marca de agua (ajusta a tu gusto) ===== */
-      /* Más grande: subí el tamaño máximo y relativo */
-      --wm-size: clamp(520px, 78vmin, 1280px); /* tamaño */
-      --wm-opacity: .14;                       /* transparencia */
+      --wm-size: clamp(680px, 85vmin, 1500px); /* MÁS GRANDE */
+      --wm-opacity: .16;                       /* un poquito más visible */
       --wm-rotate: 0deg;                       /* 0 = derecha (sin inclinación) */
       --wm-blend: normal;                      /* normal | multiply | screen */
     }
@@ -96,7 +95,10 @@
       opacity: var(--wm-opacity);
       mix-blend-mode: var(--wm-blend);
       filter: grayscale(20%) saturate(120%) contrast(105%);
+      visibility: hidden;    /* oculto hasta que realmente cargue */
     }
+    .wm-logo img.show{ visibility: visible; }
+
     /* Asegura que el contenido quede encima */
     main { position:relative; z-index:1; }
     @media print { .wm-logo{ display:none } }
@@ -119,8 +121,8 @@
 
   <!-- MARCA DE AGUA -->
   <div class="wm-logo">
-    <!-- Cambia la ruta si tu logo está en otra carpeta -->
-    <img id="wm-img" src="logo-proveedora.webp" alt="Marca de agua La Proveedora">
+    <!-- Alt vacío para que no se vea texto si falla -->
+    <img id="wm-img" alt="" aria-label="Marca de agua La Proveedora">
   </div>
 
   <main>
@@ -182,17 +184,50 @@
     // ==== DOM ====
     const selUsuario    = document.getElementById('sel-usuario');
     const btnBuscar     = document.getElementById('btn-buscar');
-    const btnConcentrar = document.getElementById('btn-concentrar');
+       const btnConcentrar = document.getElementById('btn-concentrar');
     const estado        = document.getElementById('estado');
     const grid          = document.getElementById('grid');
+    const wmImg         = document.getElementById('wm-img');
 
     /** @type {{usuario:string, folio:string, fechaIso:string|null, articulos:any[]}[]} */
     let inventarios = [];
 
-    // Arranque vacío
+    // 1) Marca de agua: intenta rutas comunes y muestra solo cuando cargue
+    (async function setWatermark(){
+      const base = location.pathname.replace(/\/[^\/]*$/, ''); // carpeta actual
+      const CANDIDATES = [
+        'logo-proveedora.webp',
+        './logo-proveedora.webp',
+        base + '/logo-proveedora.webp',
+        '/MONITOREO-INVENTARIOS-ANUALES/logo-proveedora.webp',
+        '/logo-proveedora.webp',
+        'assets/logo-proveedora.webp',
+        'img/logo-proveedora.webp',
+        'images/logo-proveedora.webp',
+        'logo_proveedora.webp',
+        'logo-proveedora.png',
+        'img/logo-proveedora.png'
+      ];
+      for (const path of CANDIDATES){
+        try {
+          await new Promise((res, rej)=>{
+            const t = new Image();
+            t.onload = res;
+            t.onerror = rej;
+            t.src = path;
+          });
+          wmImg.src = path;
+          wmImg.classList.add('show'); // ahora sí se ve
+          return;
+        } catch {}
+      }
+      console.warn('Marca de agua: no se encontró el archivo. Revisa nombre y ruta en GitHub Pages.');
+    })();
+
+    // 2) Arranque vacío
     render([]);
 
-    // Eventos UI
+    // 3) Eventos UI
     selUsuario.addEventListener('change', ()=> render(filter()));
     btnBuscar.addEventListener('click', buscar);
     btnConcentrar.addEventListener('click', ()=>{
@@ -203,7 +238,7 @@
       descargarExcelConcentrado(items, etiqueta);
     });
 
-    // Carga con fallback
+    // 4) Carga con fallback
     async function buscar(){
       try{
         setEstado('Buscando…');
@@ -304,8 +339,7 @@
         return [i+1, p.descripcion||'', p.codigo||'', fmt(cant,3), fmt(precio,2), fmt(tot,2), ts, folio];
       });
       const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
-      rows.push([]);
-      rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
+      rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
       const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
