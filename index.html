@@ -9,54 +9,99 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
-    :root{ --azul:#00416A; --prim:#0c6cbd; --blanco:#fff; --sombra:rgba(0,0,0,.15) }
-    *{ box-sizing:border-box }
-    body{ font-family:'Poppins',sans-serif; background:linear-gradient(to right,#00416A,#E4E5E6); color:white; margin:0; min-height:100vh }
-    h1{ margin:0 0 16px; text-align:center }
-    .content{ position:relative; z-index:1; padding:20px } /* contenido por encima de la marca de agua */
+    :root{
+      --azul:#00416A;
+      --prim:#0c6cbd;
+      --blanco:#fff;
+      --sombra:rgba(0,0,0,.15);
 
-    .barra{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-bottom:12px }
-    select,button{ border:none; border-radius:10px; padding:10px 14px; font-size:16px; font-family:inherit }
+      /* Ajustes rápidos marca de agua */
+      --wm-size: min(70vmin, 900px);   /* tamaño máximo */
+      --wm-opacity: .08;               /* transparencia */
+      --wm-rotate: -8deg;              /* inclinación */
+    }
+
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{
+      margin:0;
+      min-height:100%;
+      display:flex; flex-direction:column;
+      font-family:'Poppins',sans-serif;
+      color:white;
+      background:linear-gradient(to right,#00416A,#E4E5E6);
+    }
+
+    main{ position:relative; z-index:1; padding:20px; flex:1 0 auto }
+    h1{ margin:0 0 16px; text-align:center }
+
+    .barra{
+      display:flex; gap:10px; flex-wrap:wrap;
+      justify-content:center; align-items:center; margin-bottom:12px;
+    }
+    select,button{
+      border:none; border-radius:10px; padding:10px 14px;
+      font-size:16px; font-family:inherit;
+    }
     select{ background:white; color:#111; min-width:240px }
     .btn{ background:var(--prim); color:white; font-weight:600; cursor:pointer; box-shadow:0 4px 12px var(--sombra) }
     .btn[disabled]{ opacity:.6; cursor:not-allowed }
     .btn:hover{ filter:brightness(.95) }
-    .contenedor{ max-width:1100px; margin:0 auto }
+
     #estado{ text-align:center; margin:6px auto 12px; min-height:22px }
     .ok{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); display:inline-block; padding:4px 10px; border-radius:999px }
     .err{ background:#b00020; color:#fff; display:inline-block; padding:4px 10px; border-radius:8px }
-    .grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:14px }
-    .card{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:14px; padding:14px; color:white; box-shadow:0 6px 18px var(--sombra); display:flex; flex-direction:column; gap:8px }
+
+    .contenedor{ max-width:1100px; margin:0 auto }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px,1fr));
+      gap:14px;
+    }
+    .card{
+      background:rgba(255,255,255,.15);
+      border:1px solid rgba(255,255,255,.25);
+      border-radius:14px;
+      padding:14px; color:white;
+      box-shadow:0 6px 18px var(--sombra);
+      display:flex; flex-direction:column; gap:8px;
+    }
     .titulo{ font-weight:700; font-size:18px; line-height:1.2 }
     .pill{ display:inline-block; background:white; color:#0c6cbd; border:1px solid #0c6cbd; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700 }
     .fila{ display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap }
     .muted{ opacity:.9 }
     .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
 
-    /* ===== Marca de agua con LOGO ===== */
+    /* ===== Marca de agua con logo (como en tu panel) ===== */
     .wm-logo{
-      position:fixed; inset:0; z-index:0; pointer-events:none;
-      /* Cambia la ruta si tu archivo está en otra carpeta */
-      background-image:url('logo-proveedora.webp');
+      position:fixed; inset:0; pointer-events:none; z-index:0;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .wm-logo::before{
+      content:"";
+      width:var(--wm-size); height:var(--wm-size);
+      background-image:url('logo-proveedora.webp'); /* <-- cambia ruta si es necesario */
       background-repeat:no-repeat;
       background-position:center center;
-      background-size:min(60vmin, 800px) auto; /* escala automática */
-      opacity:.06;                /* transparencia de la marca de agua */
-      filter:grayscale(100%);     /* la suaviza para que no distraiga */
-      transform:rotate(-10deg);   /* inclinación ligera */
-      mix-blend-mode:multiply;    /* se integra con el fondo */
+      background-size:contain;
+      opacity:var(--wm-opacity);
+      transform:rotate(var(--wm-rotate));
+      filter:sepia(1) saturate(12) hue-rotate(-6deg) brightness(0.95); /* leve tinte rojizo como en la captura */
+      mix-blend-mode:multiply;
     }
 
-    /* Si prefieres mosaico, sustituye arriba por esto:
-    .wm-logo{
-      position:fixed; inset:0; z-index:0; pointer-events:none;
-      background-image:url('logo-proveedora.webp');
-      background-repeat:repeat;
-      background-size: 320px auto;
-      opacity:.04;
-      filter:grayscale(100%);
+    /* ===== Footer fijo ===== */
+    footer{
+      flex-shrink:0;
+      position:relative; z-index:1;
+      padding:12px 16px; text-align:center; color:#fff;
+      background:linear-gradient(90deg, rgba(0,0,0,.18), rgba(255,255,255,.12));
+      border-top:1px solid rgba(255,255,255,.2);
+      backdrop-filter: blur(4px);
+      font-weight:600;
+      letter-spacing:.3px;
     }
-    */
+    footer span{ opacity:.9 }
   </style>
 
   <script type="module">
@@ -197,36 +242,17 @@
       const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
       const rows = (articulos||[]).map((p,i)=>{
         const cant = Number(p.cantidad||0);
-        const precio = Number(p.precio||0);
-        const tot = roundTo(cant*precio, 2);
-        const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
-        return [i+1, p.descripcion||'', p.codigo||'', fmt(cant,3), fmt(precio,2), fmt(tot,2), ts, folio];
+        thePrecio: {
+        }
       });
-      const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
-      rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
-      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
-      XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-      XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
-    }
-
-    // ===== Excel: concentrado =====
-    function descargarExcelConcentrado(items, etiqueta){
-      items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'','es'));
-      const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
-      const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, fmt(r.cantidad,3), fmt(r.precio,2), fmt(r.total,2)]);
-      const gTotal = roundTo(items.reduce((a,b)=> a + Number(b.total||0), 0), 2);
-      rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", fmt(gTotal,2)]);
-      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
-      XLSX.utils.book_append_sheet(wb, ws, "Concentrado");
-      XLSX.writeFile(wb, `Concentrado_${etiqueta}.xlsx`);
     }
   </script>
 </head>
 <body>
-  <!-- MARCA DE AGUA CON LOGO -->
+  <!-- Marca de agua con logo (como tu panel) -->
   <div class="wm-logo"></div>
 
-  <main class="content">
+  <main>
     <h1>Monitoreo Inventarios por Usuario</h1>
 
     <div class="barra">
@@ -254,5 +280,50 @@
     <div id="estado"></div>
     <div id="grid" class="contenedor grid"></div>
   </main>
+
+  <footer>
+    <span>Desarrollado por Lizandro Sustaita</span>
+  </footer>
+
+  <script type="module">
+    // (Coloqué el JS de exportes aquí para que el bloque de arriba no quede muy largo)
+    import { roundTo as _r } from 'https://cdn.jsdelivr.net/gh/umaranis/utils@main/num.js'; // fallback ligero si falla arriba (opcional)
+
+    function round2(n){ try{return Number(n||0).toFixed(2)}catch{return (Math.round((+n||0)*100)/100).toFixed(2)} }
+    function round3(n){ try{return Number(n||0).toFixed(3)}catch{return (Math.round((+n||0)*1000)/1000).toFixed(3)} }
+
+    // Busca las funciones definidas en el primer <script type="module">:
+    const win = window;
+    function descargarExcelArticulos(articulos, folio){
+      const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
+      const rows = (articulos||[]).map((p,i)=>{
+        const cant = Number(p.cantidad||0);
+        const precio = Number(p.precio||0);
+        const tot = Math.round(cant*precio*100)/100;
+        const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
+        return [i+1, p.descripcion||'', p.codigo||'', round3(cant), round2(precio), round2(tot), ts, folio];
+      });
+      const suma = (articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0);
+      rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", round2(suma), "", folio]);
+
+      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+      XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
+    }
+    function descargarExcelConcentrado(items, etiqueta){
+      items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'','es'));
+      const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
+      const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, round3(r.cantidad), round2(r.precio), round2(r.total)]);
+      const gTotal = items.reduce((a,b)=> a + Number(b.total||0), 0);
+      rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", round2(gTotal)]);
+      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      XLSX.utils.book_append_sheet(wb, ws, "Concentrado");
+      XLSX.writeFile(wb, `Concentrado_${etiqueta}.xlsx`);
+    }
+
+    // Exponer para que los botones del módulo principal puedan llamarlas
+    window.descargarExcelArticulos = descargarExcelArticulos;
+    window.descargarExcelConcentrado = descargarExcelConcentrado;
+  </script>
 </body>
 </html>
