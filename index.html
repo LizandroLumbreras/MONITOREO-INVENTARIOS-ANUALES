@@ -11,8 +11,10 @@
   <style>
     :root{ --azul:#00416A; --prim:#0c6cbd; --blanco:#fff; --sombra:rgba(0,0,0,.15) }
     *{ box-sizing:border-box }
-    body{ font-family:'Poppins',sans-serif; background:linear-gradient(to right,#00416A,#E4E5E6); color:white; margin:0; padding:20px; min-height:100vh }
+    body{ font-family:'Poppins',sans-serif; background:linear-gradient(to right,#00416A,#E4E5E6); color:white; margin:0; min-height:100vh }
     h1{ margin:0 0 16px; text-align:center }
+    .content{ position:relative; z-index:1; padding:20px } /* contenido por encima de la marca de agua */
+
     .barra{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-bottom:12px }
     select,button{ border:none; border-radius:10px; padding:10px 14px; font-size:16px; font-family:inherit }
     select{ background:white; color:#111; min-width:240px }
@@ -30,6 +32,31 @@
     .fila{ display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap }
     .muted{ opacity:.9 }
     .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+
+    /* ===== Marca de agua con LOGO ===== */
+    .wm-logo{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      /* Cambia la ruta si tu archivo está en otra carpeta */
+      background-image:url('logo-proveedora.webp');
+      background-repeat:no-repeat;
+      background-position:center center;
+      background-size:min(60vmin, 800px) auto; /* escala automática */
+      opacity:.06;                /* transparencia de la marca de agua */
+      filter:grayscale(100%);     /* la suaviza para que no distraiga */
+      transform:rotate(-10deg);   /* inclinación ligera */
+      mix-blend-mode:multiply;    /* se integra con el fondo */
+    }
+
+    /* Si prefieres mosaico, sustituye arriba por esto:
+    .wm-logo{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:url('logo-proveedora.webp');
+      background-repeat:repeat;
+      background-size: 320px auto;
+      opacity:.04;
+      filter:grayscale(100%);
+    }
+    */
   </style>
 
   <script type="module">
@@ -52,11 +79,7 @@
     const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
     const fmt = (n,d)=> Number(n||0).toFixed(d);
     const cap = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
-    const toIso = v => {
-      if (!v) return null;
-      try { if (typeof v.toDate === 'function') return v.toDate().toISOString(); } catch {}
-      return typeof v === 'string' ? v : null;
-    };
+    const toIso = v => { try{ if(v?.toDate) return v.toDate().toISOString(); }catch{} return typeof v==='string'?v:null; };
 
     // ==== DOM ====
     const selUsuario    = document.getElementById('sel-usuario');
@@ -66,13 +89,10 @@
     const grid          = document.getElementById('grid');
 
     // Estado
-    /** @type {{usuario:string, folio:string, fechaIso:string|null, articulos:any[]}[]} */
     let inventarios = [];
 
-    // Arranque vacío (espera a “Buscar”)
-    render([]);
+    render([]); // arranque vacío
 
-    // --- Eventos ---
     selUsuario.addEventListener('change', ()=> render(filter()));
     btnBuscar.addEventListener('click', buscar);
     btnConcentrar.addEventListener('click', ()=>{
@@ -90,16 +110,15 @@
         inventarios = await fetchDocs(q1);
         setEstado(`Listo: ${inventarios.length} inventario(s).`, 'ok');
       }catch(e){
-        console.warn('Fallo con orderBy(fecha). Intentando sin índice…', e);
+        console.warn('Fallo orderBy(fecha). Reintentando sin índice…', e);
         try{
           const q2 = query(collectionGroup(db,'escaneos'));
           inventarios = await fetchDocs(q2);
-          // ordenamos en cliente por fechaIso desc
-          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||''));
+          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||'')); // ordenar en cliente
           setEstado(`Listo (sin índice): ${inventarios.length} inventario(s).`, 'ok');
         }catch(err){
           console.error(err);
-          setEstado('Error leyendo Firestore. Revisa permisos/índices (ver consola).', 'err');
+          setEstado('Error leyendo Firestore. Revisa permisos/índices.', 'err');
           inventarios = [];
         }
       }
@@ -116,7 +135,7 @@
         out.push({
           usuario,
           folio: d.folio || '(sin folio)',
-          fechaIso: toIso(d.fecha) || (typeof d.fecha === 'string' ? d.fecha : null),
+          fechaIso: toIso(d.fecha),
           articulos: d.articulos || []
         });
       });
@@ -129,12 +148,13 @@
     }
 
     function render(lista){
+      const l = Array.isArray(lista)?lista:[];
       grid.innerHTML = '';
-      if(!lista || !lista.length){
+      if(!l.length){
         grid.innerHTML = `<p style="text-align:center">No hay inventarios para este filtro.</p>`;
         return;
       }
-      for(const inv of lista){
+      for(const inv of l){
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
@@ -142,14 +162,10 @@
           <div class="muted">Folio: <span class="pill">${inv.folio}</span></div>
           <div class="fila">
             <div class="muted">${inv.fechaIso ? inv.fechaIso.slice(0,16).replace('T',' ') : ''}</div>
-            <div class="right">
-              <button class="btn" data-f="${encodeURIComponent(inv.folio)}">⬇️ Excel</button>
-            </div>
+            <div class="right"><button class="btn" data-f="${encodeURIComponent(inv.folio)}">⬇️ Excel</button></div>
           </div>
         `;
-        card.querySelector('button').addEventListener('click', ()=>{
-          descargarExcelArticulos(inv.articulos, inv.folio);
-        });
+        card.querySelector('button').addEventListener('click', ()=> descargarExcelArticulos(inv.articulos, inv.folio));
         grid.appendChild(card);
       }
     }
@@ -207,31 +223,36 @@
   </script>
 </head>
 <body>
-  <h1>Monitoreo Inventarios por Usuario</h1>
+  <!-- MARCA DE AGUA CON LOGO -->
+  <div class="wm-logo"></div>
 
-  <div class="barra">
-    <select id="sel-usuario" title="Filtrar por usuario">
-      <option value="todos">— Todos —</option>
-      <option value="blanca">Blanca</option>
-      <option value="lizandro">Lizandro</option>
-      <option value="edgardo">Edgardo</option>
-      <option value="fernanda">Fernanda</option>
-      <option value="vansessa">Vansessa</option>
-      <option value="esmeralda">Esmeralda</option>
-      <option value="gibran">Gibran</option>
-      <option value="roberto">Roberto</option>
-      <option value="usuario1">Usuario 1</option>
-      <option value="usuario2">Usuario 2</option>
-      <option value="usuario3">Usuario 3</option>
-      <option value="usuario4">Usuario 4</option>
-      <option value="usuario5">Usuario 5</option>
-    </select>
+  <main class="content">
+    <h1>Monitoreo Inventarios por Usuario</h1>
 
-    <button id="btn-buscar" class="btn">🔎 Buscar</button>
-    <button id="btn-concentrar" class="btn">📊 Concentrar y descargar</button>
-  </div>
+    <div class="barra">
+      <select id="sel-usuario" title="Filtrar por usuario">
+        <option value="todos">— Todos —</option>
+        <option value="blanca">Blanca</option>
+        <option value="lizandro">Lizandro</option>
+        <option value="edgardo">Edgardo</option>
+        <option value="fernanda">Fernanda</option>
+        <option value="vansessa">Vansessa</option>
+        <option value="esmeralda">Esmeralda</option>
+        <option value="gibran">Gibran</option>
+        <option value="roberto">Roberto</option>
+        <option value="usuario1">Usuario 1</option>
+        <option value="usuario2">Usuario 2</option>
+        <option value="usuario3">Usuario 3</option>
+        <option value="usuario4">Usuario 4</option>
+        <option value="usuario5">Usuario 5</option>
+      </select>
 
-  <div id="estado"></div>
-  <div id="grid" class="contenedor grid"></div>
+      <button id="btn-buscar" class="btn">🔎 Buscar</button>
+      <button id="btn-concentrar" class="btn">📊 Concentrar y descargar</button>
+    </div>
+
+    <div id="estado"></div>
+    <div id="grid" class="contenedor grid"></div>
+  </main>
 </body>
 </html>
