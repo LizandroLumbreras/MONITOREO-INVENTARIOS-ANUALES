@@ -13,16 +13,17 @@
       --azul:#00416A;
       --prim:#0c6cbd;
       --blanco:#fff;
-      --sombra:rgba(0,0,0,.15);
+      --sombra:rgba(0,0,0,.18);
 
-      /* Ajustes rápidos marca de agua */
-      --wm-size: min(70vmin, 900px);   /* tamaño máximo */
-      --wm-opacity: .08;               /* transparencia */
-      --wm-rotate: -8deg;              /* inclinación */
+      /* Marca de agua (ajusta a tu gusto) */
+      --wm-size: min(72vmin, 900px);
+      --wm-opacity: .14;
+      --wm-rotate: -8deg;
+      --wm-blend: normal; /* normal | multiply | screen */
     }
 
     *{ box-sizing:border-box }
-    html,body{ height:100% }
+    html, body { height:100% }
     body{
       margin:0;
       min-height:100%;
@@ -40,13 +41,17 @@
       justify-content:center; align-items:center; margin-bottom:12px;
     }
     select,button{
-      border:none; border-radius:10px; padding:10px 14px;
+      border:none; border-radius:12px; padding:10px 16px;
       font-size:16px; font-family:inherit;
     }
     select{ background:white; color:#111; min-width:240px }
-    .btn{ background:var(--prim); color:white; font-weight:600; cursor:pointer; box-shadow:0 4px 12px var(--sombra) }
-    .btn[disabled]{ opacity:.6; cursor:not-allowed }
+    .btn{
+      background:var(--prim); color:white; font-weight:700; cursor:pointer;
+      box-shadow:0 6px 16px var(--sombra);
+      border:1px solid rgba(255,255,255,.18);
+    }
     .btn:hover{ filter:brightness(.95) }
+    .btn[disabled]{ opacity:.6; cursor:not-allowed }
 
     #estado{ text-align:center; margin:6px auto 12px; min-height:22px }
     .ok{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); display:inline-block; padding:4px 10px; border-radius:999px }
@@ -56,41 +61,42 @@
     .grid{
       display:grid;
       grid-template-columns: repeat(auto-fit, minmax(260px,1fr));
-      gap:14px;
+      gap:16px;
     }
     .card{
-      background:rgba(255,255,255,.15);
-      border:1px solid rgba(255,255,255,.25);
-      border-radius:14px;
-      padding:14px; color:white;
-      box-shadow:0 6px 18px var(--sombra);
-      display:flex; flex-direction:column; gap:8px;
+      background:linear-gradient(145deg, rgba(255,255,255,.14), rgba(255,255,255,.08));
+      border:1px solid rgba(255,255,255,.28);
+      border-radius:18px;
+      padding:16px; color:white;
+      box-shadow:0 8px 24px var(--sombra);
+      display:flex; flex-direction:column; gap:10px;
+      backdrop-filter: blur(2px);
     }
-    .titulo{ font-weight:700; font-size:18px; line-height:1.2 }
-    .pill{ display:inline-block; background:white; color:#0c6cbd; border:1px solid #0c6cbd; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700 }
-    .fila{ display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap }
+    .titulo{ font-weight:800; font-size:18px; line-height:1.2 }
+    .pill{
+      display:inline-block; background:white; color:#0c6cbd;
+      border:1px solid #0c6cbd; padding:4px 10px; border-radius:999px;
+      font-size:12px; font-weight:800
+    }
+    .fila{ display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap }
     .muted{ opacity:.9 }
-    .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
 
-    /* ===== Marca de agua con logo (como en tu panel) ===== */
+    /* ===== Marca de agua (IMG) ===== */
     .wm-logo{
-      position:fixed; inset:0; pointer-events:none; z-index:0;
+      position:fixed; inset:0; z-index:0; pointer-events:none;
       display:flex; align-items:center; justify-content:center;
     }
-    .wm-logo::before{
-      content:"";
-      width:var(--wm-size); height:var(--wm-size);
-      background-image:url('logo-proveedora.webp'); /* <-- cambia ruta si es necesario */
-      background-repeat:no-repeat;
-      background-position:center center;
-      background-size:contain;
+    .wm-logo img{
+      width:var(--wm-size); height:auto;
       opacity:var(--wm-opacity);
       transform:rotate(var(--wm-rotate));
-      filter:sepia(1) saturate(12) hue-rotate(-6deg) brightness(0.95); /* leve tinte rojizo como en la captura */
-      mix-blend-mode:multiply;
+      mix-blend-mode:var(--wm-blend);
+      filter:grayscale(20%) saturate(120%) contrast(105%);
     }
+    @media print { .wm-logo{ display:none } }
 
-    /* ===== Footer fijo ===== */
+    /* ===== Footer ===== */
     footer{
       flex-shrink:0;
       position:relative; z-index:1;
@@ -98,159 +104,18 @@
       background:linear-gradient(90deg, rgba(0,0,0,.18), rgba(255,255,255,.12));
       border-top:1px solid rgba(255,255,255,.2);
       backdrop-filter: blur(4px);
-      font-weight:600;
+      font-weight:700;
       letter-spacing:.3px;
     }
-    footer span{ opacity:.9 }
+    footer span{ opacity:.95 }
   </style>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collectionGroup, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    // ==== Config Firebase ====
-    const firebaseConfig = {
-      apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
-      authDomain: "inventariopv-643f1.firebaseapp.com",
-      projectId: "inventariopv-643f1",
-      storageBucket: "inventariopv-643f1.appspot.com",
-      messagingSenderId: "96242533231",
-      appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
-
-    // ==== Utils ====
-    const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
-    const fmt = (n,d)=> Number(n||0).toFixed(d);
-    const cap = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
-    const toIso = v => { try{ if(v?.toDate) return v.toDate().toISOString(); }catch{} return typeof v==='string'?v:null; };
-
-    // ==== DOM ====
-    const selUsuario    = document.getElementById('sel-usuario');
-    const btnBuscar     = document.getElementById('btn-buscar');
-    const btnConcentrar = document.getElementById('btn-concentrar');
-    const estado        = document.getElementById('estado');
-    const grid          = document.getElementById('grid');
-
-    // Estado
-    let inventarios = [];
-
-    render([]); // arranque vacío
-
-    selUsuario.addEventListener('change', ()=> render(filter()));
-    btnBuscar.addEventListener('click', buscar);
-    btnConcentrar.addEventListener('click', ()=>{
-      const lista = filter();
-      if(!lista.length){ alert('No hay inventarios para concentrar.'); return; }
-      const items = concentrar(lista);
-      const etiqueta = selUsuario.value==='todos' ? 'Todos' : cap(selUsuario.value);
-      descargarExcelConcentrado(items, etiqueta);
-    });
-
-    async function buscar(){
-      try{
-        setEstado('Buscando…');
-        const q1 = query(collectionGroup(db,'escaneos'), orderBy('fecha','desc'));
-        inventarios = await fetchDocs(q1);
-        setEstado(`Listo: ${inventarios.length} inventario(s).`, 'ok');
-      }catch(e){
-        console.warn('Fallo orderBy(fecha). Reintentando sin índice…', e);
-        try{
-          const q2 = query(collectionGroup(db,'escaneos'));
-          inventarios = await fetchDocs(q2);
-          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||'')); // ordenar en cliente
-          setEstado(`Listo (sin índice): ${inventarios.length} inventario(s).`, 'ok');
-        }catch(err){
-          console.error(err);
-          setEstado('Error leyendo Firestore. Revisa permisos/índices.', 'err');
-          inventarios = [];
-        }
-      }
-      render(filter());
-    }
-
-    async function fetchDocs(qry){
-      const snap = await getDocs(qry);
-      const out = [];
-      snap.forEach(doc=>{
-        const partes  = doc.ref.path.split('/');  // inventarios/<usuario>/escaneos/<id>
-        const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'desconocido')).toLowerCase();
-        const d = doc.data();
-        out.push({
-          usuario,
-          folio: d.folio || '(sin folio)',
-          fechaIso: toIso(d.fecha),
-          articulos: d.articulos || []
-        });
-      });
-      return out;
-    }
-
-    function filter(){
-      const f = selUsuario.value; // 'todos' o usuario
-      return inventarios.filter(inv => f==='todos' ? true : inv.usuario===f);
-    }
-
-    function render(lista){
-      const l = Array.isArray(lista)?lista:[];
-      grid.innerHTML = '';
-      if(!l.length){
-        grid.innerHTML = `<p style="text-align:center">No hay inventarios para este filtro.</p>`;
-        return;
-      }
-      for(const inv of l){
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="titulo">${cap(inv.usuario)}</div>
-          <div class="muted">Folio: <span class="pill">${inv.folio}</span></div>
-          <div class="fila">
-            <div class="muted">${inv.fechaIso ? inv.fechaIso.slice(0,16).replace('T',' ') : ''}</div>
-            <div class="right"><button class="btn" data-f="${encodeURIComponent(inv.folio)}">⬇️ Excel</button></div>
-          </div>
-        `;
-        card.querySelector('button').addEventListener('click', ()=> descargarExcelArticulos(inv.articulos, inv.folio));
-        grid.appendChild(card);
-      }
-    }
-
-    function setEstado(msg, kind){
-      estado.className = kind==='ok' ? 'ok' : (kind==='err' ? 'err' : '');
-      estado.textContent = msg || '';
-    }
-
-    // ===== Concentrado =====
-    function concentrar(lista){
-      const map = new Map(); // codigo => {codigo, descripcion, cantidad, precio}
-      for(const inv of lista){
-        for(const p of (inv.articulos||[])){
-          const cod = String(p.codigo||'').trim();
-          if(!cod) continue;
-          const prev = map.get(cod) || { codigo: cod, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
-          prev.cantidad = Number(prev.cantidad||0) + Number(p.cantidad||0);
-          if((p.descripcion||'').trim()) prev.descripcion = p.descripcion.trim();
-          if(!isNaN(Number(p.precio))) prev.precio = Number(p.precio);
-          map.set(cod, prev);
-        }
-      }
-      return Array.from(map.values()).map(r=>({ ...r, total: roundTo(Number(r.cantidad||0)*Number(r.precio||0),2) }));
-    }
-
-    // ===== Excel: individual =====
-    function descargarExcelArticulos(articulos, folio){
-      const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
-      const rows = (articulos||[]).map((p,i)=>{
-        const cant = Number(p.cantidad||0);
-        thePrecio: {
-        }
-      });
-    }
-  </script>
 </head>
 <body>
-  <!-- Marca de agua con logo (como tu panel) -->
-  <div class="wm-logo"></div>
+
+  <!-- MARCA DE AGUA -->
+  <div class="wm-logo">
+    <img id="wm-img" alt="Marca de agua La Proveedora">
+  </div>
 
   <main>
     <h1>Monitoreo Inventarios por Usuario</h1>
@@ -282,48 +147,200 @@
   </main>
 
   <footer>
-    <span>Desarrollado por Lizandro Sustaita</span>
+    © 2025 <span>Panel de Herramientas La Proveedora</span> · Desarrollado por Lizandro Sustaita®
   </footer>
 
+  <!-- Lógica de datos y Excel -->
   <script type="module">
-    // (Coloqué el JS de exportes aquí para que el bloque de arriba no quede muy largo)
-    import { roundTo as _r } from 'https://cdn.jsdelivr.net/gh/umaranis/utils@main/num.js'; // fallback ligero si falla arriba (opcional)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collectionGroup, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    function round2(n){ try{return Number(n||0).toFixed(2)}catch{return (Math.round((+n||0)*100)/100).toFixed(2)} }
-    function round3(n){ try{return Number(n||0).toFixed(3)}catch{return (Math.round((+n||0)*1000)/1000).toFixed(3)} }
+    // ==== Config Firebase ====
+    const firebaseConfig = {
+      apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
+      authDomain: "inventariopv-643f1.firebaseapp.com",
+      projectId: "inventariopv-643f1",
+      storageBucket: "inventariopv-643f1.appspot.com",
+      messagingSenderId: "96242533231",
+      appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-    // Busca las funciones definidas en el primer <script type="module">:
-    const win = window;
+    // ==== Utils ====
+    const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
+    const fmt = (n,d)=> Number(n||0).toFixed(d);
+    const cap = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
+    const toIso = v => { try{ if(v?.toDate) return v.toDate().toISOString(); }catch{} return typeof v==='string'?v:null; };
+
+    // ==== DOM ====
+    const selUsuario    = document.getElementById('sel-usuario');
+    const btnBuscar     = document.getElementById('btn-buscar');
+    const btnConcentrar = document.getElementById('btn-concentrar');
+    const estado        = document.getElementById('estado');
+    const grid          = document.getElementById('grid');
+
+    /** @type {{usuario:string, folio:string, fechaIso:string|null, articulos:any[]}[]} */
+    let inventarios = [];
+
+    // Arranque vacío
+    render([]);
+
+    // Marca de agua: intenta rutas comunes (GitHub Pages es sensible a mayúsculas)
+    (async function loadWatermark(){
+      const CANDIDATES = [
+        'logo-proveedora.webp',
+        './logo-proveedora.webp',
+        'assets/logo-proveedora.webp',
+        'img/logo-proveedora.webp',
+        'logo_proveedora.webp',
+        'logo-proveedora.png',
+        'img/logo-proveedora.png'
+      ];
+      const $img = document.getElementById('wm-img');
+      for (const p of CANDIDATES){
+        try{
+          await new Promise((res, rej)=>{
+            const t = new Image();
+            t.onload = res; t.onerror = rej; t.src = p;
+          });
+          $img.src = p;
+          return;
+        }catch{}
+      }
+      console.warn('Marca de agua: no se encontró el logo. Verifica la ruta/nombre del archivo.');
+    })();
+
+    // Eventos UI
+    selUsuario.addEventListener('change', ()=> render(filter()));
+    btnBuscar.addEventListener('click', buscar);
+    btnConcentrar.addEventListener('click', ()=>{
+      const lista = filter();
+      if(!lista.length){ alert('No hay inventarios para concentrar.'); return; }
+      const items = concentrar(lista);
+      const etiqueta = selUsuario.value==='todos' ? 'Todos' : cap(selUsuario.value);
+      descargarExcelConcentrado(items, etiqueta);
+    });
+
+    // Carga con fallback
+    async function buscar(){
+      try{
+        setEstado('Buscando…');
+        const q1 = query(collectionGroup(db,'escaneos'), orderBy('fecha','desc'));
+        inventarios = await fetchDocs(q1);
+        setEstado(`Listo: ${inventarios.length} inventario(s).`, 'ok');
+      }catch(e){
+        console.warn('Fallo orderBy(fecha). Reintentando sin índice…', e);
+        try{
+          const q2 = query(collectionGroup(db,'escaneos'));
+          inventarios = await fetchDocs(q2);
+          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||'')); // ordenar en cliente
+          setEstado(`Listo (sin índice): ${inventarios.length} inventario(s).`, 'ok');
+        }catch(err){
+          console.error(err);
+          setEstado('Error leyendo Firestore. Revisa reglas/índices.', 'err');
+          inventarios = [];
+        }
+      }
+      render(filter());
+    }
+
+    async function fetchDocs(qry){
+      const snap = await getDocs(qry);
+      const out = [];
+      snap.forEach(doc=>{
+        const partes  = doc.ref.path.split('/');  // inventarios/<usuario>/escaneos/<id>
+        const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'desconocido')).toLowerCase();
+        const d = doc.data();
+        out.push({
+          usuario,
+          folio: d.folio || '(sin folio)',
+          fechaIso: toIso(d.fecha),
+          articulos: d.articulos || []
+        });
+      });
+      return out;
+    }
+
+    function filter(){
+      const f = selUsuario.value;
+      return inventarios.filter(inv => f==='todos' ? true : inv.usuario===f);
+    }
+
+    function render(lista){
+      const L = Array.isArray(lista)?lista:[];
+      grid.innerHTML = '';
+      if(!L.length){
+        grid.innerHTML = `<p style="text-align:center">No hay inventarios para este filtro.</p>`;
+        return;
+      }
+      for(const inv of L){
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="titulo">${cap(inv.usuario)}</div>
+          <div class="muted">Folio: <span class="pill">${inv.folio}</span></div>
+          <div class="fila">
+            <div class="muted">${inv.fechaIso ? inv.fechaIso.slice(0,16).replace('T',' ') : ''}</div>
+            <div class="right"><button class="btn">⬇️ Excel</button></div>
+          </div>
+        `;
+        card.querySelector('.btn').addEventListener('click', ()=> descargarExcelArticulos(inv.articulos, inv.folio));
+        grid.appendChild(card);
+      }
+    }
+
+    function setEstado(msg, kind){
+      estado.className = kind==='ok' ? 'ok' : (kind==='err' ? 'err' : '');
+      estado.textContent = msg || '';
+    }
+
+    // ===== Concentrado =====
+    function concentrar(lista){
+      const map = new Map(); // codigo => {codigo, descripcion, cantidad, precio}
+      for(const inv of lista){
+        for(const p of (inv.articulos||[])){
+          const cod = String(p.codigo||'').trim();
+          if(!cod) continue;
+          const prev = map.get(cod) || { codigo: cod, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
+          prev.cantidad = Number(prev.cantidad||0) + Number(p.cantidad||0);
+          if((p.descripcion||'').trim()) prev.descripcion = p.descripcion.trim();
+          if(!isNaN(Number(p.precio))) prev.precio = Number(p.precio);
+          map.set(cod, prev);
+        }
+      }
+      return Array.from(map.values()).map(r=>({ ...r, total: roundTo(Number(r.cantidad||0)*Number(r.precio||0),2) }));
+    }
+
+    // ===== Excel: individual =====
     function descargarExcelArticulos(articulos, folio){
       const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
       const rows = (articulos||[]).map((p,i)=>{
         const cant = Number(p.cantidad||0);
         const precio = Number(p.precio||0);
-        const tot = Math.round(cant*precio*100)/100;
+        const tot = roundTo(cant*precio, 2);
         const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
-        return [i+1, p.descripcion||'', p.codigo||'', round3(cant), round2(precio), round2(tot), ts, folio];
+        return [i+1, p.descripcion||'', p.codigo||'', fmt(cant,3), fmt(precio,2), fmt(tot,2), ts, folio];
       });
-      const suma = (articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0);
-      rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", round2(suma), "", folio]);
-
+      const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
+      rows.push([]);
+      rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
       const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
     }
+
+    // ===== Excel: concentrado =====
     function descargarExcelConcentrado(items, etiqueta){
       items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'','es'));
       const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
-      const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, round3(r.cantidad), round2(r.precio), round2(r.total)]);
-      const gTotal = items.reduce((a,b)=> a + Number(b.total||0), 0);
-      rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", round2(gTotal)]);
+      const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, fmt(r.cantidad,3), fmt(r.precio,2), fmt(r.total,2)]);
+      const gTotal = roundTo(items.reduce((a,b)=> a + Number(b.total||0), 0), 2);
+      rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", fmt(gTotal,2)]);
       const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Concentrado");
       XLSX.writeFile(wb, `Concentrado_${etiqueta}.xlsx`);
     }
-
-    // Exponer para que los botones del módulo principal puedan llamarlas
-    window.descargarExcelArticulos = descargarExcelArticulos;
-    window.descargarExcelConcentrado = descargarExcelConcentrado;
   </script>
 </body>
 </html>
