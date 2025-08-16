@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Monitoreo Inventarios por Usuario</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --azul:#00416A;
+      --blanco:#fff;
+      --sombra:rgba(0,0,0,.15);
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:'Poppins',sans-serif;
+      background:linear-gradient(to right,#00416A,#E4E5E6);
+      color:white; margin:0; padding:20px; min-height:100vh;
+    }
+    h1{margin:0 0 12px; text-align:center}
+    .barra{
+      display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-bottom:16px;
+    }
+    input,button,select{
+      border:none; border-radius:8px; padding:10px 12px; font-size:16px; font-family:inherit;
+    }
+    .buscador{min-width:260px; width:100%; max-width:360px; background:white; color:black}
+    .btn{background:#0c6cbd; color:white; font-weight:600; cursor:pointer}
+    .btn:hover{background:#084f92}
+    .contenedor{max-width:1100px; margin:0 auto}
+    .acordeon{
+      background:rgba(255,255,255,.15);
+      border:1px solid rgba(255,255,255,.25);
+      border-radius:12px; margin-bottom:12px; overflow:hidden;
+      box-shadow:0 6px 18px var(--sombra);
+    }
+    .acordeon h2{
+      margin:0; padding:14px 16px; cursor:pointer; background:rgba(255,255,255,.08);
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .pill{
+      background:white; color:#0c6cbd; border:1px solid #0c6cbd;
+      padding:4px 8px; border-radius:999px; font-size:12px; font-weight:600;
+    }
+    .panel{display:none; background:white; color:black}
+    .panel-inner{padding:12px}
+    .fila-acciones{display:flex; gap:8px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:10px}
+    .totales{display:flex; gap:14px; flex-wrap:wrap; font-weight:600}
+    .contenedor-tabla{overflow-x:auto}
+    table{width:100%; border-collapse:collapse; min-width:760px}
+    th,td{border:1px solid #ddd; padding:8px; text-align:center}
+    th{position:sticky; top:0; background:var(--azul); color:white}
+    .modal{
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+      z-index:999; justify-content:center; align-items:center; padding:16px;
+    }
+    .modal>div{
+      background:white; color:black; border-radius:12px; max-width:95vw; width:900px; max-height:85vh;
+      overflow:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.3);
+    }
+    .modal h3{margin-top:0}
+  </style>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collectionGroup, getDocs, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // ==== Config Firebase ====
+    const firebaseConfig = {
+      apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
+      authDomain: "inventariopv-643f1.firebaseapp.com",
+      projectId: "inventariopv-643f1",
+      storageBucket: "inventariopv-643f1.appspot.com",
+      messagingSenderId: "96242533231",
+      appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ==== Utils ====
+    const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
+    const fmt = (n,d)=> Number(n||0).toFixed(d);
+    const cssId = s => String(s).replace(/[^\w\-]+/g,'_');
+
+    // ==== DOM ====
+    const buscarInput = document.getElementById('buscar');
+    const contenedor  = document.getElementById('resultado');
+    const modal       = document.getElementById('modal');
+    const modalBody   = document.getElementById('modal-body');
+    const modalClose  = document.getElementById('modal-close');
+
+    modalClose.addEventListener('click', ()=> modal.style.display='none');
+    modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.style.display='none'; });
+
+    // Estado
+    let datosPorUsuario = {}; // { usuario: [{folio,fecha,...,articulos, _path}] }
+
+    // Carga inicial
+    await cargar();
+    render();
+
+    async function cargar(){
+      // Lee todos los docs de subcolección "escaneos" bajo inventarios/{usuario}/escaneos
+      const q = query(collectionGroup(db, 'escaneos'), orderBy('fecha','desc'));
+      const snap = await getDocs(q);
+
+      datosPorUsuario = {};
+      snap.forEach(doc=>{
+        // Path ejemplo: inventarios/blanca/escaneos/abc123
+        const full = doc.ref.path;
+        const partes = full.split('/');
+        const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'DESCONOCIDO'));
+
+        const d = doc.data();
+        const item = {
+          _path: full,
+          folio: d.folio || '(sin folio)',
+          fecha: d.fecha || null,
+          totalArticulos: d.totalArticulos ?? (d.articulos?.length || 0),
+          sumaCantidades: Number(d.sumaCantidades ?? 0),
+          sumaImporte: Number(d.sumaImporte ?? 0),
+          palabraClave: d.palabraClave || '',
+          articulos: d.articulos || []
+        };
+        if(!datosPorUsuario[usuario]) datosPorUsuario[usuario] = [];
+        datosPorUsuario[usuario].push(item);
+      });
+    }
+
+    function render(){
+      const filtroGlobal = (buscarInput.value||'').trim().toLowerCase();
+      contenedor.innerHTML = '';
+
+      const usuarios = Object.keys(datosPorUsuario).sort((a,b)=> a.localeCompare(b,'es'));
+      if(!usuarios.length){
+        contenedor.innerHTML = `<p>No hay inventarios registrados.</p>`;
+        return;
+      }
+
+      for(const usuario of usuarios){
+        const lista = datosPorUsuario[usuario];
+
+        // Totales del usuario
+        const totRenglones = lista.reduce((a,b)=> a + (b.totalArticulos||0), 0);
+        const totCant = roundTo(lista.reduce((a,b)=> a + (Number(b.sumaCantidades)||0), 0), 3);
+        const totImp  = roundTo(lista.reduce((a,b)=> a + (Number(b.sumaImporte)||0), 0), 2);
+
+        // Card / acordeón
+        const card = document.createElement('div');
+        card.className = 'acordeon';
+        card.innerHTML = `
+          <h2 data-usuario="${usuario}">
+            <span>${usuario}</span>
+            <span class="pill">Docs: ${lista.length}</span>
+          </h2>
+          <div class="panel">
+            <div class="panel-inner">
+              <div class="fila-acciones">
+                <input id="bus-${cssId(usuario)}" class="buscador" placeholder="Buscar en ${usuario} (folio / clave)"/>
+                <div class="totales">
+                  <span>Total renglones: ${fmt(totRenglones,0)}</span>
+                  <span>Suma cantidades: ${fmt(totCant,3)}</span>
+                  <span>Importe total: $${fmt(totImp,2)}</span>
+                </div>
+                <button class="btn" data-exp="${cssId(usuario)}">⬇️ Excel (todo ${usuario})</button>
+              </div>
+              <div class="contenedor-tabla">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Folio</th>
+                      <th>Fecha</th>
+                      <th>Renglones</th>
+                      <th>Suma cant.</th>
+                      <th>Importe</th>
+                      <th>Clave</th>
+                      <th>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tb-${cssId(usuario)}"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+        contenedor.appendChild(card);
+
+        // Render filas con filtros
+        const tbody = card.querySelector(`#tb-${cssId(usuario)}`);
+        const inpU  = card.querySelector(`#bus-${cssId(usuario)}`);
+
+        function pinta(){
+          const filtroU = (inpU.value||'').toLowerCase();
+          tbody.innerHTML = '';
+          let idx=0;
+          for(const inv of lista){
+            const texto = `${inv.folio} ${inv.palabraClave}`.toLowerCase();
+            const pasaGlobal = !filtroGlobal || texto.includes(filtroGlobal);
+            const pasaLocal  = !filtroU || texto.includes(filtroU);
+            if(!(pasaGlobal && pasaLocal)) continue;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${++idx}</td>
+              <td>${inv.folio}</td>
+              <td>${inv.fecha ? inv.fecha.slice(0,19).replace('T',' ') : ''}</td>
+              <td>${fmt(inv.totalArticulos,0)}</td>
+              <td>${fmt(inv.sumaCantidades,3)}</td>
+              <td>$${fmt(inv.sumaImporte,2)}</td>
+              <td>${inv.palabraClave||''}</td>
+              <td>
+                <button class="btn" data-x="ver"   data-user="${usuario}" data-folio="${encodeURIComponent(inv.folio)}">👁️ Ver</button>
+                <button class="btn" data-x="excel" data-user="${usuario}" data-folio="${encodeURIComponent(inv.folio)}">⬇️ Excel</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+        pinta();
+
+        // Eventos acordeón, filtro y export masivo
+        const header = card.querySelector('h2');
+        header.addEventListener('click', ()=>{
+          const panel = header.nextElementSibling;
+          panel.style.display = panel.style.display==='block' ? 'none' : 'block';
+        });
+        inpU.addEventListener('input', pinta);
+
+        card.querySelector(`[data-exp="${cssId(usuario)}"]`).addEventListener('click', ()=>{
+          const filas = lista.map((inv,i)=>({
+            idx:i+1,
+            folio:inv.folio,
+            fecha:inv.fecha ? inv.fecha.slice(0,19).replace('T',' ') : '',
+            renglones:inv.totalArticulos||0,
+            cant:inv.sumaCantidades||0,
+            imp:inv.sumaImporte||0,
+            clave:inv.palabraClave||''
+          }));
+          descargarExcelInventariosUsuario(filas, `Inventarios_${usuario}`);
+        });
+
+        // Delegación de acciones por fila
+        tbody.addEventListener('click', (e)=>{
+          const btn = e.target.closest('button'); if(!btn) return;
+          const tipo = btn.dataset.x;
+          const folio = decodeURIComponent(btn.dataset.folio);
+          const inv = lista.find(x=> x.folio===folio);
+          if(!inv) return;
+
+          if(tipo==='excel'){
+            descargarExcelArticulos(inv.articulos, inv.folio);
+          }else if(tipo==='ver'){
+            mostrarModalInventario(usuario, inv);
+          }
+        });
+      }
+    }
+
+    // ===== Excel helpers =====
+    function descargarExcelInventariosUsuario(lista, nombre){
+      const headers = [["#", "Folio","Fecha","Renglones","Suma Cant.","Importe","Clave"]];
+      const rows = lista.map(x=>[
+        x.idx, x.folio, x.fecha, x.renglones,
+        Number(x.cant||0).toFixed(3),
+        Number(x.imp||0).toFixed(2),
+        x.clave||""
+      ]);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      XLSX.utils.book_append_sheet(wb, ws, "Inventarios");
+      XLSX.writeFile(wb, `${nombre}.xlsx`);
+    }
+
+    function descargarExcelArticulos(articulos, folio){
+      const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Importe", "Fecha", "Folio"]];
+      const rows = (articulos||[]).map((p,i)=>{
+        const cant = Number(p.cantidad||0);
+        const precio = Number(p.precio||0);
+        const imp = roundTo(cant*precio, 2);
+        const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
+        return [i+1, p.descripcion||'', p.codigo||'', cant.toFixed(3), precio.toFixed(2), imp.toFixed(2), ts, folio];
+      });
+      // Totales
+      const sumaCant = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad)||0), 0), 3);
+      const sumaImp  = roundTo((articulos||[]).reduce((a,b)=> a + ((Number(b.cantidad)||0)*(Number(b.precio)||0)), 0), 2);
+      rows.push([]);
+      rows.push(["", "TOTALES", "", sumaCant.toFixed(3), "", sumaImp.toFixed(2), "", folio]);
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+      XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
+    }
+
+    // ===== Modal detalle =====
+    function mostrarModalInventario(usuario, inv){
+      modalBody.innerHTML = `
+        <h3>Inventario de ${usuario} — Folio: ${inv.folio}</h3>
+        <p><b>Fecha:</b> ${inv.fecha ? inv.fecha.slice(0,19).replace('T',' ') : ''}</p>
+        <p><b>Palabra clave:</b> ${inv.palabraClave||''}</p>
+        <div class="contenedor-tabla">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Descripción</th>
+                <th>Código</th>
+                <th>Cantidad</th>
+                <th>Precio</th>
+                <th>Importe</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                (inv.articulos||[]).map((p,i)=>{
+                  const cant = Number(p.cantidad||0);
+                  const precio = Number(p.precio||0);
+                  const imp = roundTo(cant*precio,2);
+                  const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
+                  return `
+                    <tr>
+                      <td>${i+1}</td>
+                      <td>${p.descripcion||''}</td>
+                      <td>${p.codigo||''}</td>
+                      <td>${cant.toFixed(3)}</td>
+                      <td>$${precio.toFixed(2)}</td>
+                      <td>$${imp.toFixed(2)}</td>
+                      <td>${ts}</td>
+                    </tr>
+                  `;
+                }).join('')
+              }
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn" id="excel-detalle">⬇️ Descargar Excel</button>
+          <button class="btn" id="cerrar-modal">Cerrar</button>
+        </div>
+      `;
+      modal.style.display = 'flex';
+
+      document.getElementById('cerrar-modal').onclick = ()=> modal.style.display='none';
+      document.getElementById('excel-detalle').onclick = ()=> descargarExcelArticulos(inv.articulos, inv.folio);
+    }
+
+    // Filtro global
+    buscarInput.addEventListener('input', render);
+
+    // Botón actualizar
+    document.getElementById('btn-refresh').addEventListener('click', async ()=>{
+      await cargar();
+      render();
+    });
+  </script>
+</head>
+<body>
+  <h1>Monitoreo Inventarios por Usuario</h1>
+
+  <div class="barra">
+    <input id="buscar" class="buscador" placeholder="Buscar global (folio o clave)..." />
+    <button id="btn-refresh" class="btn">🔄 Actualizar</button>
+  </div>
+
+  <div id="resultado" class="contenedor"></div>
+
+  <!-- Modal detalle -->
+  <div id="modal" class="modal">
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <strong>Detalle de inventario</strong>
+        <button id="modal-close" class="btn">✖</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+</body>
+</html>
