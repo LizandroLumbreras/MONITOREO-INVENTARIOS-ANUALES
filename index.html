@@ -9,50 +9,27 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
-    :root{
-      --azul:#00416A;
-      --prim:#0c6cbd;
-      --blanco:#fff;
-      --sombra:rgba(0,0,0,.15);
-    }
-    *{box-sizing:border-box}
-    body{
-      font-family:'Poppins',sans-serif;
-      background:linear-gradient(to right,#00416A,#E4E5E6);
-      color:white; margin:0; padding:20px; min-height:100vh;
-    }
-    h1{margin:0 0 16px; text-align:center}
-    .barra{
-      display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-bottom:18px;
-    }
-    select,button{
-      border:none; border-radius:10px; padding:10px 14px; font-size:16px; font-family:inherit;
-    }
-    select{background:white; color:#111; min-width:240px}
-    .btn{background:var(--prim); color:white; font-weight:600; cursor:pointer; box-shadow:0 4px 12px var(--sombra)}
-    .btn[disabled]{opacity:.6; cursor:not-allowed}
-    .btn:hover{filter:brightness(0.95)}
-    .contenedor{max-width:1100px; margin:0 auto}
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap:14px;
-    }
-    .card{
-      background:rgba(255,255,255,.15);
-      border:1px solid rgba(255,255,255,.25);
-      border-radius:14px;
-      padding:14px;
-      color:white;
-      box-shadow:0 6px 18px var(--sombra);
-      display:flex; flex-direction:column; gap:8px;
-    }
-    .card .titulo{font-weight:700; font-size:18px; line-height:1.2}
-    .pill{display:inline-block; background:white; color:#0c6cbd; border:1px solid #0c6cbd; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700}
-    .fila{display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap}
-    .muted{opacity:.9}
-    .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    #contador{margin:0 auto 10px; text-align:center}
+    :root{ --azul:#00416A; --prim:#0c6cbd; --blanco:#fff; --sombra:rgba(0,0,0,.15) }
+    *{ box-sizing:border-box }
+    body{ font-family:'Poppins',sans-serif; background:linear-gradient(to right,#00416A,#E4E5E6); color:white; margin:0; padding:20px; min-height:100vh }
+    h1{ margin:0 0 16px; text-align:center }
+    .barra{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; margin-bottom:12px }
+    select,button{ border:none; border-radius:10px; padding:10px 14px; font-size:16px; font-family:inherit }
+    select{ background:white; color:#111; min-width:240px }
+    .btn{ background:var(--prim); color:white; font-weight:600; cursor:pointer; box-shadow:0 4px 12px var(--sombra) }
+    .btn[disabled]{ opacity:.6; cursor:not-allowed }
+    .btn:hover{ filter:brightness(.95) }
+    .contenedor{ max-width:1100px; margin:0 auto }
+    #estado{ text-align:center; margin:6px auto 12px; min-height:22px }
+    .ok{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); display:inline-block; padding:4px 10px; border-radius:999px }
+    .err{ background:#b00020; color:#fff; display:inline-block; padding:4px 10px; border-radius:8px }
+    .grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:14px }
+    .card{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); border-radius:14px; padding:14px; color:white; box-shadow:0 6px 18px var(--sombra); display:flex; flex-direction:column; gap:8px }
+    .titulo{ font-weight:700; font-size:18px; line-height:1.2 }
+    .pill{ display:inline-block; background:white; color:#0c6cbd; border:1px solid #0c6cbd; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700 }
+    .fila{ display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap }
+    .muted{ opacity:.9 }
+    .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
   </style>
 
   <script type="module">
@@ -74,157 +51,156 @@
     // ==== Utils ====
     const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
     const fmt = (n,d)=> Number(n||0).toFixed(d);
-    const capitalize = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
+    const cap = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
+    const toIso = v => {
+      if (!v) return null;
+      try { if (typeof v.toDate === 'function') return v.toDate().toISOString(); } catch {}
+      return typeof v === 'string' ? v : null;
+    };
 
     // ==== DOM ====
-    const selUsuario   = document.getElementById('sel-usuario');
-    const btnBuscar    = document.getElementById('btn-buscar');
-    const btnConcentrar= document.getElementById('btn-concentrar');
-    const grid         = document.getElementById('grid');
-    const contador     = document.getElementById('contador');
+    const selUsuario    = document.getElementById('sel-usuario');
+    const btnBuscar     = document.getElementById('btn-buscar');
+    const btnConcentrar = document.getElementById('btn-concentrar');
+    const estado        = document.getElementById('estado');
+    const grid          = document.getElementById('grid');
 
     // Estado
-    /** @type {{usuario:string, folio:string, fecha:string|null, articulos:any[]}[]} */
-    let inventarios = [];  // lista plana (cada doc = una tarjeta)
+    /** @type {{usuario:string, folio:string, fechaIso:string|null, articulos:any[]}[]} */
+    let inventarios = [];
 
-    // Carga inicial (si quieres que aparezca vacío hasta que den Buscar, comenta estas dos líneas)
-    await cargar();
-    render();
+    // Arranque vacío (espera a “Buscar”)
+    render([]);
 
-    async function cargar(){
-      const q = query(collectionGroup(db, 'escaneos'), orderBy('fecha','desc'));
-      const snap = await getDocs(q);
-      inventarios = [];
+    // --- Eventos ---
+    selUsuario.addEventListener('change', ()=> render(filter()));
+    btnBuscar.addEventListener('click', buscar);
+    btnConcentrar.addEventListener('click', ()=>{
+      const lista = filter();
+      if(!lista.length){ alert('No hay inventarios para concentrar.'); return; }
+      const items = concentrar(lista);
+      const etiqueta = selUsuario.value==='todos' ? 'Todos' : cap(selUsuario.value);
+      descargarExcelConcentrado(items, etiqueta);
+    });
+
+    async function buscar(){
+      try{
+        setEstado('Buscando…');
+        const q1 = query(collectionGroup(db,'escaneos'), orderBy('fecha','desc'));
+        inventarios = await fetchDocs(q1);
+        setEstado(`Listo: ${inventarios.length} inventario(s).`, 'ok');
+      }catch(e){
+        console.warn('Fallo con orderBy(fecha). Intentando sin índice…', e);
+        try{
+          const q2 = query(collectionGroup(db,'escaneos'));
+          inventarios = await fetchDocs(q2);
+          // ordenamos en cliente por fechaIso desc
+          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||''));
+          setEstado(`Listo (sin índice): ${inventarios.length} inventario(s).`, 'ok');
+        }catch(err){
+          console.error(err);
+          setEstado('Error leyendo Firestore. Revisa permisos/índices (ver consola).', 'err');
+          inventarios = [];
+        }
+      }
+      render(filter());
+    }
+
+    async function fetchDocs(qry){
+      const snap = await getDocs(qry);
+      const out = [];
       snap.forEach(doc=>{
-        // Path: inventarios/<usuario>/escaneos/<id>
-        const partes = doc.ref.path.split('/');
+        const partes  = doc.ref.path.split('/');  // inventarios/<usuario>/escaneos/<id>
         const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'desconocido')).toLowerCase();
         const d = doc.data();
-        inventarios.push({
+        out.push({
           usuario,
           folio: d.folio || '(sin folio)',
-          fecha: d.fecha || null,
+          fechaIso: toIso(d.fecha) || (typeof d.fecha === 'string' ? d.fecha : null),
           articulos: d.articulos || []
         });
       });
+      return out;
     }
 
-    function listaFiltrada(){
-      const filtro = selUsuario.value; // "todos" o usuario
-      return inventarios.filter(inv => filtro==='todos' ? true : inv.usuario===filtro);
+    function filter(){
+      const f = selUsuario.value; // 'todos' o usuario
+      return inventarios.filter(inv => f==='todos' ? true : inv.usuario===f);
     }
 
-    function render(){
-      const lista = listaFiltrada();
+    function render(lista){
       grid.innerHTML = '';
-      contador.textContent = `${lista.length} inventario(s) encontrado(s)`;
-
-      if(!lista.length){
-        grid.innerHTML = `<p>No hay inventarios para este filtro.</p>`;
+      if(!lista || !lista.length){
+        grid.innerHTML = `<p style="text-align:center">No hay inventarios para este filtro.</p>`;
         return;
       }
-
       for(const inv of lista){
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
-          <div class="titulo">${capitalize(inv.usuario)}</div>
+          <div class="titulo">${cap(inv.usuario)}</div>
           <div class="muted">Folio: <span class="pill">${inv.folio}</span></div>
           <div class="fila">
-            <div class="muted">${inv.fecha ? inv.fecha.slice(0,16).replace('T',' ') : ''}</div>
+            <div class="muted">${inv.fechaIso ? inv.fechaIso.slice(0,16).replace('T',' ') : ''}</div>
             <div class="right">
-              <button class="btn" data-x="excel" data-folio="${encodeURIComponent(inv.folio)}">⬇️ Excel</button>
+              <button class="btn" data-f="${encodeURIComponent(inv.folio)}">⬇️ Excel</button>
             </div>
           </div>
         `;
-        card.querySelector('[data-x="excel"]').addEventListener('click', ()=>{
+        card.querySelector('button').addEventListener('click', ()=>{
           descargarExcelArticulos(inv.articulos, inv.folio);
         });
         grid.appendChild(card);
       }
     }
 
-    // --- Eventos ---
-    selUsuario.addEventListener('change', render);
+    function setEstado(msg, kind){
+      estado.className = kind==='ok' ? 'ok' : (kind==='err' ? 'err' : '');
+      estado.textContent = msg || '';
+    }
 
-    btnBuscar.addEventListener('click', async ()=>{
-      btnBuscar.disabled = true; btnBuscar.textContent = 'Buscando...';
-      await cargar();
-      render();
-      btnBuscar.disabled = false; btnBuscar.textContent = '🔎 Buscar';
-    });
-
-    // Botón "Concentrar y descargar"
-    btnConcentrar.addEventListener('click', ()=>{
-      const lista = listaFiltrada();
-      if(!lista.length){ alert('No hay inventarios para concentrar.'); return; }
-      const agregados = concentrarArticulos(lista);
-      const etiqueta = selUsuario.value==='todos' ? 'Todos' : capitalize(selUsuario.value);
-      descargarExcelConcentrado(agregados, etiqueta);
-    });
-
-    // ===== Lógica de concentración =====
-    function concentrarArticulos(listaInventarios){
-      // Agrupa por código y suma cantidades; conserva última descripción y precio visto
-      const mapa = new Map(); // codigo -> {codigo, descripcion, cantidad, precio}
-      for(const inv of listaInventarios){
+    // ===== Concentrado =====
+    function concentrar(lista){
+      const map = new Map(); // codigo => {codigo, descripcion, cantidad, precio}
+      for(const inv of lista){
         for(const p of (inv.articulos||[])){
-          const codigo = String(p.codigo||'').trim();
-          if(!codigo) continue;
-          const prev = mapa.get(codigo) || { codigo, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
+          const cod = String(p.codigo||'').trim();
+          if(!cod) continue;
+          const prev = map.get(cod) || { codigo: cod, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
           prev.cantidad = Number(prev.cantidad||0) + Number(p.cantidad||0);
           if((p.descripcion||'').trim()) prev.descripcion = p.descripcion.trim();
           if(!isNaN(Number(p.precio))) prev.precio = Number(p.precio);
-          mapa.set(codigo, prev);
+          map.set(cod, prev);
         }
       }
-      return Array.from(mapa.values()).map(r => ({
-        ...r,
-        total: roundTo(Number(r.cantidad||0) * Number(r.precio||0), 2)
-      }));
+      return Array.from(map.values()).map(r=>({ ...r, total: roundTo(Number(r.cantidad||0)*Number(r.precio||0),2) }));
     }
 
-    // ===== Excel: inventario individual (con costos) =====
+    // ===== Excel: individual =====
     function descargarExcelArticulos(articulos, folio){
       const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
       const rows = (articulos||[]).map((p,i)=>{
         const cant = Number(p.cantidad||0);
         const precio = Number(p.precio||0);
-        const imp = roundTo(cant*precio, 2);
+        const tot = roundTo(cant*precio, 2);
         const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
-        return [i+1, p.descripcion||'', p.codigo||'', cant.toFixed(3), precio.toFixed(2), imp.toFixed(2), ts, folio];
+        return [i+1, p.descripcion||'', p.codigo||'', fmt(cant,3), fmt(precio,2), fmt(tot,2), ts, folio];
       });
-
-      const sumaTotal = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
-      rows.push([]);
-      rows.push(["", "TOTAL INVENTARIO", "", "", "", sumaTotal.toFixed(2), "", folio]);
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
+      rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
+      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
     }
 
-    // ===== Excel: concentrado (por filtro actual) =====
+    // ===== Excel: concentrado =====
     function descargarExcelConcentrado(items, etiqueta){
-      items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'', 'es'));
-
+      items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'','es'));
       const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
-      const rows = items.map((r,i)=>[
-        i+1,
-        r.codigo,
-        r.descripcion,
-        fmt(r.cantidad, 3),
-        fmt(r.precio, 2),
-        fmt(r.total, 2)
-      ]);
-
-      const granTotal = roundTo(items.reduce((a,b)=> a + Number(b.total||0), 0), 2);
-      rows.push([]);
-      rows.push(["", "", "TOTAL GENERAL", "", "", fmt(granTotal,2)]);
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
+      const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, fmt(r.cantidad,3), fmt(r.precio,2), fmt(r.total,2)]);
+      const gTotal = roundTo(items.reduce((a,b)=> a + Number(b.total||0), 0), 2);
+      rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", fmt(gTotal,2)]);
+      const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Concentrado");
       XLSX.writeFile(wb, `Concentrado_${etiqueta}.xlsx`);
     }
@@ -255,7 +231,7 @@
     <button id="btn-concentrar" class="btn">📊 Concentrar y descargar</button>
   </div>
 
-  <div id="contador" class="contenedor pill"></div>
+  <div id="estado"></div>
   <div id="grid" class="contenedor grid"></div>
 </body>
 </html>
