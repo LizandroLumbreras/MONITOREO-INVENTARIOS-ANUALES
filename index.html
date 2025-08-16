@@ -30,6 +30,7 @@
     }
     select{background:white; color:#111; min-width:240px}
     .btn{background:var(--prim); color:white; font-weight:600; cursor:pointer; box-shadow:0 4px 12px var(--sombra)}
+    .btn[disabled]{opacity:.6; cursor:not-allowed}
     .btn:hover{filter:brightness(0.95)}
     .contenedor{max-width:1100px; margin:0 auto}
     .grid{
@@ -46,13 +47,12 @@
       box-shadow:0 6px 18px var(--sombra);
       display:flex; flex-direction:column; gap:8px;
     }
-    .card .titulo{
-      font-weight:700; font-size:18px; line-height:1.2;
-    }
+    .card .titulo{font-weight:700; font-size:18px; line-height:1.2}
     .pill{display:inline-block; background:white; color:#0c6cbd; border:1px solid #0c6cbd; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:700}
     .fila{display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap}
     .muted{opacity:.9}
     .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    #contador{margin:0 auto 10px; text-align:center}
   </style>
 
   <script type="module">
@@ -74,17 +74,20 @@
     // ==== Utils ====
     const roundTo = (n,d)=> Math.round((Number(n)||0)*10**d)/10**d;
     const fmt = (n,d)=> Number(n||0).toFixed(d);
+    const capitalize = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
 
     // ==== DOM ====
-    const selUsuario = document.getElementById('sel-usuario');
-    const btnConcentrar = document.getElementById('btn-concentrar');
-    const grid = document.getElementById('grid');
+    const selUsuario   = document.getElementById('sel-usuario');
+    const btnBuscar    = document.getElementById('btn-buscar');
+    const btnConcentrar= document.getElementById('btn-concentrar');
+    const grid         = document.getElementById('grid');
+    const contador     = document.getElementById('contador');
 
     // Estado
     /** @type {{usuario:string, folio:string, fecha:string|null, articulos:any[]}[]} */
     let inventarios = [];  // lista plana (cada doc = una tarjeta)
 
-    // Carga inicial
+    // Carga inicial (si quieres que aparezca vacío hasta que den Buscar, comenta estas dos líneas)
     await cargar();
     render();
 
@@ -95,7 +98,7 @@
       snap.forEach(doc=>{
         // Path: inventarios/<usuario>/escaneos/<id>
         const partes = doc.ref.path.split('/');
-        const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'DESCONOCIDO'));
+        const usuario = (partes.length>=2 ? partes[1] : (doc.data().usuario || 'desconocido')).toLowerCase();
         const d = doc.data();
         inventarios.push({
           usuario,
@@ -106,11 +109,16 @@
       });
     }
 
-    function render(){
+    function listaFiltrada(){
       const filtro = selUsuario.value; // "todos" o usuario
-      grid.innerHTML = '';
+      return inventarios.filter(inv => filtro==='todos' ? true : inv.usuario===filtro);
+    }
 
-      const lista = inventarios.filter(inv => filtro==='todos' ? true : inv.usuario.toLowerCase()===filtro);
+    function render(){
+      const lista = listaFiltrada();
+      grid.innerHTML = '';
+      contador.textContent = `${lista.length} inventario(s) encontrado(s)`;
+
       if(!lista.length){
         grid.innerHTML = `<p>No hay inventarios para este filtro.</p>`;
         return;
@@ -136,17 +144,23 @@
       }
     }
 
-    // Selector usuario
+    // --- Eventos ---
     selUsuario.addEventListener('change', render);
+
+    btnBuscar.addEventListener('click', async ()=>{
+      btnBuscar.disabled = true; btnBuscar.textContent = 'Buscando...';
+      await cargar();
+      render();
+      btnBuscar.disabled = false; btnBuscar.textContent = '🔎 Buscar';
+    });
 
     // Botón "Concentrar y descargar"
     btnConcentrar.addEventListener('click', ()=>{
-      const filtro = selUsuario.value;
-      const lista = inventarios.filter(inv => filtro==='todos' ? true : inv.usuario.toLowerCase()===filtro);
-
+      const lista = listaFiltrada();
       if(!lista.length){ alert('No hay inventarios para concentrar.'); return; }
       const agregados = concentrarArticulos(lista);
-      descargarExcelConcentrado(agregados, filtro==='todos' ? 'Todos' : capitalize(filtro));
+      const etiqueta = selUsuario.value==='todos' ? 'Todos' : capitalize(selUsuario.value);
+      descargarExcelConcentrado(agregados, etiqueta);
     });
 
     // ===== Lógica de concentración =====
@@ -159,13 +173,11 @@
           if(!codigo) continue;
           const prev = mapa.get(codigo) || { codigo, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
           prev.cantidad = Number(prev.cantidad||0) + Number(p.cantidad||0);
-          // Actualizamos descripción y precio con el último valor no vacío
           if((p.descripcion||'').trim()) prev.descripcion = p.descripcion.trim();
           if(!isNaN(Number(p.precio))) prev.precio = Number(p.precio);
           mapa.set(codigo, prev);
         }
       }
-      // A array + totales calculados
       return Array.from(mapa.values()).map(r => ({
         ...r,
         total: roundTo(Number(r.cantidad||0) * Number(r.precio||0), 2)
@@ -183,7 +195,6 @@
         return [i+1, p.descripcion||'', p.codigo||'', cant.toFixed(3), precio.toFixed(2), imp.toFixed(2), ts, folio];
       });
 
-      // Suma total
       const sumaTotal = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
       rows.push([]);
       rows.push(["", "TOTAL INVENTARIO", "", "", "", sumaTotal.toFixed(2), "", folio]);
@@ -196,7 +207,6 @@
 
     // ===== Excel: concentrado (por filtro actual) =====
     function descargarExcelConcentrado(items, etiqueta){
-      // Orden opcional por descripción
       items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'', 'es'));
 
       const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
@@ -218,8 +228,6 @@
       XLSX.utils.book_append_sheet(wb, ws, "Concentrado");
       XLSX.writeFile(wb, `Concentrado_${etiqueta}.xlsx`);
     }
-
-    function capitalize(s){ return String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1); }
   </script>
 </head>
 <body>
@@ -243,9 +251,11 @@
       <option value="usuario5">Usuario 5</option>
     </select>
 
+    <button id="btn-buscar" class="btn">🔎 Buscar</button>
     <button id="btn-concentrar" class="btn">📊 Concentrar y descargar</button>
   </div>
 
+  <div id="contador" class="contenedor pill"></div>
   <div id="grid" class="contenedor grid"></div>
 </body>
 </html>
