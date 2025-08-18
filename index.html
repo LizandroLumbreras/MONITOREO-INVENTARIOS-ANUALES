@@ -14,11 +14,11 @@
       --prim:#0c6cbd;
       --sombra:rgba(0,0,0,.18);
 
-      /* ===== Marca de agua (ajusta a tu gusto) ===== */
-      --wm-size: clamp(680px, 85vmin, 1500px); /* MÁS GRANDE */
-      --wm-opacity: .16;                       /* un poquito más visible */
-      --wm-rotate: 0deg;                       /* 0 = derecha (sin inclinación) */
-      --wm-blend: normal;                      /* normal | multiply | screen */
+      /* ===== Marca de agua ===== */
+      --wm-size: clamp(680px, 85vmin, 1500px);
+      --wm-opacity: .16;
+      --wm-rotate: 0deg;
+      --wm-blend: normal;
     }
 
     *{ box-sizing:border-box }
@@ -81,7 +81,7 @@
     .muted{ opacity:.9 }
     .right{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
 
-    /* ===== Marca de agua (IMG) centrada ===== */
+    /* ===== Marca de agua ===== */
     .wm-logo{
       position:fixed; inset:0; z-index:0; pointer-events:none;
     }
@@ -95,11 +95,10 @@
       opacity: var(--wm-opacity);
       mix-blend-mode: var(--wm-blend);
       filter: grayscale(20%) saturate(120%) contrast(105%);
-      visibility: hidden;    /* oculto hasta que realmente cargue */
+      visibility: hidden;
     }
     .wm-logo img.show{ visibility: visible; }
 
-    /* Asegura que el contenido quede encima */
     main { position:relative; z-index:1; }
     @media print { .wm-logo{ display:none } }
 
@@ -121,7 +120,6 @@
 
   <!-- MARCA DE AGUA -->
   <div class="wm-logo">
-    <!-- Alt vacío para que no se vea texto si falla -->
     <img id="wm-img" alt="" aria-label="Marca de agua La Proveedora">
   </div>
 
@@ -158,7 +156,7 @@
     © 2025 <span>Panel de Herramientas La Proveedora</span> · Desarrollado por Lizandro Sustaita®
   </footer>
 
-  <!-- Lógica de datos y Excel -->
+  <!-- Lógica de datos y Excel (usa COSTO) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collectionGroup, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -181,10 +179,16 @@
     const cap = s => String(s||'').charAt(0).toUpperCase() + String(s||'').slice(1);
     const toIso = v => { try{ if(v?.toDate) return v.toDate().toISOString(); }catch{} return typeof v==='string'?v:null; };
 
+    // ===>>> ÚNICO punto de verdad para PRECIO: usamos COSTO
+    function getCosto(p){
+      // Intenta varios alias de campo que puedas tener en tus documentos
+      return Number(p.costo ?? p.precio_costo ?? p.precioCosto ?? 0);
+    }
+
     // ==== DOM ====
     const selUsuario    = document.getElementById('sel-usuario');
     const btnBuscar     = document.getElementById('btn-buscar');
-       const btnConcentrar = document.getElementById('btn-concentrar');
+    const btnConcentrar = document.getElementById('btn-concentrar');
     const estado        = document.getElementById('estado');
     const grid          = document.getElementById('grid');
     const wmImg         = document.getElementById('wm-img');
@@ -194,7 +198,7 @@
 
     // 1) Marca de agua: intenta rutas comunes y muestra solo cuando cargue
     (async function setWatermark(){
-      const base = location.pathname.replace(/\/[^\/]*$/, ''); // carpeta actual
+      const base = location.pathname.replace(/\/[^\/]*$/, '');
       const CANDIDATES = [
         'logo-proveedora.webp',
         './logo-proveedora.webp',
@@ -217,7 +221,7 @@
             t.src = path;
           });
           wmImg.src = path;
-          wmImg.classList.add('show'); // ahora sí se ve
+          wmImg.classList.add('show');
           return;
         } catch {}
       }
@@ -250,7 +254,7 @@
         try{
           const q2 = query(collectionGroup(db,'escaneos'));
           inventarios = await fetchDocs(q2);
-          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||'')); // ordenar en cliente
+          inventarios.sort((a,b)=> (b.fechaIso||'').localeCompare(a.fechaIso||''));
           setEstado(`Listo (sin índice): ${inventarios.length} inventario(s).`, 'ok');
         }catch(err){
           console.error(err);
@@ -313,42 +317,42 @@
 
     // ===== Concentrado =====
     function concentrar(lista){
-      const map = new Map(); // codigo => {codigo, descripcion, cantidad, precio}
+      const map = new Map(); // codigo => {codigo, descripcion, cantidad, precio(costo)}
       for(const inv of lista){
         for(const p of (inv.articulos||[])){
           const cod = String(p.codigo||'').trim();
           if(!cod) continue;
-          const prev = map.get(cod) || { codigo: cod, descripcion: p.descripcion||'', cantidad: 0, precio: Number(p.precio||0) };
+          const prev = map.get(cod) || { codigo: cod, descripcion: p.descripcion||'', cantidad: 0, precio: getCosto(p) };
           prev.cantidad = Number(prev.cantidad||0) + Number(p.cantidad||0);
           if((p.descripcion||'').trim()) prev.descripcion = p.descripcion.trim();
-          if(!isNaN(Number(p.precio))) prev.precio = Number(p.precio);
+          prev.precio = getCosto(p); // siempre costo
           map.set(cod, prev);
         }
       }
       return Array.from(map.values()).map(r=>({ ...r, total: roundTo(Number(r.cantidad||0)*Number(r.precio||0),2) }));
     }
 
-    // ===== Excel: individual =====
+    // ===== Excel: individual (por folio) =====
     function descargarExcelArticulos(articulos, folio){
-      const headers = [["#", "Descripción", "Código", "Cantidad", "Precio", "Total (Cant*Precio)", "Fecha", "Folio"]];
+      const headers = [["#", "Descripción", "Código", "Cantidad", "Costo", "Total (Cant*Costo)", "Fecha", "Folio"]];
       const rows = (articulos||[]).map((p,i)=>{
         const cant = Number(p.cantidad||0);
-        const precio = Number(p.precio||0);
+        const precio = getCosto(p);             // COSTO
         const tot = roundTo(cant*precio, 2);
         const ts = (p.timestamp||'').slice(0,19).replace('T',' ');
         return [i+1, p.descripcion||'', p.codigo||'', fmt(cant,3), fmt(precio,2), fmt(tot,2), ts, folio];
       });
-      const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*Number(b.precio||0)), 0), 2);
+      const suma = roundTo((articulos||[]).reduce((a,b)=> a + (Number(b.cantidad||0)*getCosto(b)), 0), 2);
       rows.push([]); rows.push(["", "TOTAL INVENTARIO", "", "", "", fmt(suma,2), "", folio]);
       const wb = XLSX.utils.book_new(); const ws = XLSX.utils.aoa_to_sheet(headers.concat(rows));
       XLSX.utils.book_append_sheet(wb, ws, "Inventario");
       XLSX.writeFile(wb, `Inventario_${folio}.xlsx`);
     }
 
-    // ===== Excel: concentrado =====
+    // ===== Excel: concentrado (varios folios) =====
     function descargarExcelConcentrado(items, etiqueta){
       items.sort((a,b)=> String(a.descripcion||'').localeCompare(b.descripcion||'','es'));
-      const headers = [["#", "Código", "Descripción", "Cantidad", "Precio", "Total (Cant*Precio)"]];
+      const headers = [["#", "Código", "Descripción", "Cantidad", "Costo", "Total (Cant*Costo)"]];
       const rows = items.map((r,i)=>[i+1, r.codigo, r.descripcion, fmt(r.cantidad,3), fmt(r.precio,2), fmt(r.total,2)]);
       const gTotal = roundTo(items.reduce((a,b)=> a + Number(b.total||0), 0), 2);
       rows.push([]); rows.push(["", "", "TOTAL GENERAL", "", "", fmt(gTotal,2)]);
